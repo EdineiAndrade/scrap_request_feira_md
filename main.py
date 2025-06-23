@@ -32,24 +32,42 @@ def scrap_feira_md():
         else:
             total_paginas = 1
         
-        
-        if not products:
-            print(f"No products found on page: {link_categoria}")
-            continue
+        for pagina in range(1, total_paginas + 1):
+            url_pagina = f"{url_categoria}?p={pagina}"
+            response = requests.get(url_pagina)
 
-        links = []
-        for product in products:
-            link = product.find('a', class_='product-link')
-            if link and 'href' in link.attrs:
-                links.append(link['href'])
-            #if not links:
+            if response.status_code != 200:
+                print(f"Failed to retrieve the page: {url_pagina}")
+                continue
             
+            soup = BeautifulSoup(response.content, 'html.parser')
+            # Extrai todos os links, ignorando '#' e vazios
+            links_products = [
+                div.select_one('a').get('href') 
+                for div in soup.select('.item-product') 
+                if div.select_one('a') and 
+                div.select_one('a').get('href') and 
+                div.select_one('a').get('href') != '#'
+            ]
+            
+            for link_product in links_products:
+                url_product = f"{url_base}{link_product}"
+                url_product = "https://www.feiradamadrugadasp.com.br/camiseta-masculina-basica-lisa-sem-estampa-plus-size/p/220744/"
+                item = soup.select_one('.item-product')
+                data_id = item.get('data-id') if item and item.has_attr('data-id') else 'N/A'
+                response = requests.get(url_product)
 
-            # product_list = []
-            # for product in products:
-            #     name = product.find('h2', class_='product-title').text.strip()
-            #     price = product.find('span', class_='product-price').text.strip()
-            #     product_list.append({'name': name, 'price': price})
+                if response.status_code != 200:
+                    print(f"Failed to retrieve the page: {url_product}")
+                    continue
+                
+                product = BeautifulSoup(response.content, 'html.parser') 
+                name = product.find('h1', class_='name').text.strip()
+                price = float(product.find('strong', class_='sale_price').text.strip().replace('R$ ','').replace('.','').replace(',','.'))
+                cores = product.select('.cor .img img')
+                lista_cores = [label.get_text(strip=True) for label in product.select('.cor .values .value:not(.disabled)')]
+                lista_tamanhos = [label.get_text(strip=True) for label in product.select('.tam .values span')]
+                print(f"Product ID: {data_id}, Name: {name}, Price: {price}, Colors: {lista_cores}")
 
             #return product_list
 if __name__ == "__main__":

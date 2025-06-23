@@ -67,6 +67,34 @@ def scrap_feira_md():
                 cores = product.select('.cor .img img')
                 lista_cores = [label.get_text(strip=True) for label in product.select('.cor .values .value:not(.disabled)')]
                 lista_tamanhos = [label.get_text(strip=True) for label in product.select('.tam .values span')]
+                
+                paragrafos_1 = [
+                    p.get_text(strip=True)  # Extrai o texto limpo
+                    for p in product.select('div[itemprop="description"] p')  # Seletor CSS equivalente
+                    if p.get_text(strip=True)  # Ignora parágrafos vazios
+                ]
+                paragrafos_2 = [
+                    p.get_text(strip=True)  # Extrai o texto limpo
+                    for p in product.select('div[itemprop="description"] li')  # Seletor CSS equivalente
+                    if p.get_text(strip=True)  # Ignora parágrafos vazios
+                ]
+                descricao = ' '.join(paragrafos_1 + paragrafos_2)
+                peso_produto = paragrafos_2[-2].replace('Peso do Produto:','')
+                codigo_upc = paragrafos_2[-1].replace('Código UPC:','') 
+
+                # Supondo que 'soup' já esteja definido com o HTML carregado
+                imagens = product.select('#sly_carousel ul li a')
+
+                lista_imagens = [
+                    "https:" + link.get('big_img') if link.get('big_img') else ""
+                    for link in imagens
+                ]
+
+                # Remove duplicatas e strings vazias
+                lista_sem_duplicatas = list({img for img in lista_imagens if img})
+
+                # Junta com vírgula e espaço
+                lista_imagens_final = ", ".join(lista_sem_duplicatas) 
                 print(f"Product ID: {data_id}, Name: {name}, Price: {price}, Colors: {lista_cores}")
 
             #return product_list

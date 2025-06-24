@@ -1,12 +1,19 @@
+import ast
 from bs4 import BeautifulSoup
 import requests
 import re
 import pandas as pd
 
+from sheets import save_to_google_sheets
+
+# Função para salvar os dados em um arquivo Excel
+def save_to_sheets(data):    
+    #data.to_excel(filename, index=False)
+    save_to_google_sheets(data,0)
 def scrap_feira_md():
     url_base = "https://www.feiradamadrugadasp.com.br"
     response = requests.get(url_base)
-    
+    products_data = []
     if response.status_code != 200:
         print("Failed to retrieve the page")
         return []
@@ -98,7 +105,7 @@ def scrap_feira_md():
                 lista_imagens_final = ", ".join(lista_sem_duplicatas) 
                 if lista_cores:
                     df_cores = pd.DataFrame(lista_cores)
-                    cores_str = '; '.join(lista_cores)
+                    cores_str = ', '.join(lista_cores)
                     cor = 'Cor'
                     cor_padrao = lista_cores[0] if lista_cores else ''
                 else:
@@ -106,7 +113,7 @@ def scrap_feira_md():
                     
                 if lista_tamanhos:
                     df_tamanhos = pd.DataFrame(lista_tamanhos)
-                    tamanhos_str = '; '.join(lista_tamanhos)
+                    tamanhos_str = ', '.join(lista_tamanhos)
                     tamanho_meio = lista_tamanhos[0] if lista_tamanhos else ''
                     atributo1 = 'Tamanho'
                     atributo_global_2 = 1
@@ -121,7 +128,7 @@ def scrap_feira_md():
                 else:
                     df_imagens =""
                 
-                return [df_tamanhos,df_cores,df_imagens,{
+                df_final = process_products( [df_tamanhos,df_cores,df_imagens,{
                         'ID': codigo,
                         'SKU': codigo_sku,
                         'Código do Produto': codigo_upc,
@@ -177,8 +184,15 @@ def scrap_feira_md():
                         "Atributo Global 2": atributo_global_2,
                         "Atributo Padrão 2": cor_padrao,
                         "Galpão": " Galpão 8"
-                    }]
-                
+                    }])
+    
+                products_data.append(df_final)
+                df_final = pd.concat(products_data, ignore_index=True)
+                df_final = df_final.fillna("")
+                cont += 1
+                if cont >= 1:
+                    save_to_sheets(df_final)
+                    cont = 0
 
             #return product_list
 def process_products(products):
@@ -228,22 +242,9 @@ def process_products(products):
             df_final["Tipo"] = "variation"
             df_final = pd.concat([df_produto, df_final], ignore_index=True)
 
-        products_data.append(df_final)
-        df_final = pd.concat(products_data, ignore_index=True)
-        df_final = df_final.fillna("")
-        cont += 1
-        if cont >= 200:
-            save_to_sheets(df_final)
-            cont = 0
+        return df_final
     except Exception as e:
-        print(f"Erro ao processar o produto {url_product}: {e}")
-        continue
-    
-    # Exemplo de como acessar as informações do produto
-    print("Informações do produto:")
-    for key, value in product_info.items():
-        print(f"{key}: {value}")
+        print(f"Erro ao processar o produto url_product: {e}")
 if __name__ == "__main__":
     products = scrap_feira_md()
-    process_products(products)
     print("Scraping completed successfully.")

@@ -10,7 +10,7 @@ from sheets import save_to_google_sheets
 # Função para salvar os dados em um arquivo Excel
 def save_to_sheets(data):    
     #data.to_excel(filename, index=False)
-    save_to_google_sheets(data,4)
+    save_to_google_sheets(data,0)
 def scrap_feira_md():
     url_base = "https://www.feiradamadrugadasp.com.br"
     response = requests.get(url_base)
@@ -28,6 +28,8 @@ def scrap_feira_md():
     links_categorias = [a['href'] for a in categories if a.has_attr('href')]
  
     for link_categoria in links_categorias:
+        if link_categoria == '/novidades-da-semana/?map=cl&sort=lancamentos':
+            continue
         url_categoria = f"{url_base}{link_categoria}"        
         response = requests.get(url_categoria) 
 
@@ -36,11 +38,11 @@ def scrap_feira_md():
             continue
         
         soup = BeautifulSoup(response.content, 'html.parser')
-        texto_paginacao = soup.find(class_="info").get_text(strip=True)
-        numeros = list(map(int, re.findall(r'\d+', texto_paginacao)))
-        if len(numeros) >= 2:
-            total_paginas = int(numeros[1])
-        else:
+        try:
+            texto_paginacao = soup.find(class_="info").get_text(strip=True)
+            total_paginas = int(list(map(int, re.findall(r'\d+', texto_paginacao))))
+        except Exception as e:
+            print(f"Erro ao extrair números da paginação para a categoria: {e}")
             total_paginas = 1
         
         for pagina in range(1, total_paginas + 1):
@@ -60,7 +62,8 @@ def scrap_feira_md():
                 div.select_one('a').get('href') and 
                 div.select_one('a').get('href') != '#'
             ]
-            
+            # Remove duplicatas
+            links_products = list(set(links_products))
             for link_product in links_products:
                 url_product = f"{url_base}{link_product}"
                 #url_product = "https://www.feiradamadrugadasp.com.br/camiseta-masculina-basica-lisa-sem-estampa-plus-size/p/220744/"

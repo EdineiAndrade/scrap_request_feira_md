@@ -1,5 +1,5 @@
 import ast
-from time import time
+from time import sleep
 from bs4 import BeautifulSoup
 import requests
 import re
@@ -16,6 +16,7 @@ def scrap_feira_md():
     response = requests.get(url_base)
     products_data = []
     cont = 0
+    total_produtos = 0
     if response.status_code != 200:
         print("Failed to retrieve the page")
         return []
@@ -77,7 +78,7 @@ def scrap_feira_md():
                 preco_custo = float(product.find('strong', class_='sale_price').text.strip().replace('R$ ','').replace('.','').replace(',','.'))
                 preco_venda = round(float(preco_custo)* 1.1,2)
                 categoria = url_categoria.split('/')[3].replace('-',' ').title()
-                print(f"Processando categoria: {categoria} | página:{pagina} de {total_paginas} | Item: {links_products.index(link_product)+1} de {len(links_products)}")
+                print(f"Processando categoria: {links_categorias.index(link_categoria) +1} de {len(categoria)+1} | página:{pagina} de {total_paginas} | Item: {links_products.index(link_product)+1} de {len(links_products)} | cont: {cont} de 100, faltam: {100-cont} para salvar, total_processado: {total_produtos}")
                 #lista_cores = [label.get_text(strip=True) for label in product.select('.cor .values .value:not(.disabled)')]
                 #lista_tamanhos = [label.get_text(strip=True) for label in product.select('.tam .values span')]
                 lista_cores = [{
@@ -204,8 +205,9 @@ def scrap_feira_md():
                 df_final = pd.concat(products_data, ignore_index=True)
                 df_final = df_final.fillna("")
                 cont += 1
+                total_produtos += 1
                 if cont >= 100:
-                    time.sleep(2)  # Pausa de 5 segundos a cada 100 produtos
+                    sleep(2)  # Pausa de 5 segundos a cada 100 produtos
                     print(f"Salvando +{cont} produtos processados até agora...")
                     save_to_sheets(df_final)
                     cont = 0

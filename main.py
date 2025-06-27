@@ -9,11 +9,12 @@ from sheets import save_to_google_sheets
 # Função para salvar os dados em um arquivo Excel
 def save_to_sheets(data):    
     #data.to_excel(filename, index=False)
-    save_to_google_sheets(data,0)
+    save_to_google_sheets(data,4)
 def scrap_feira_md():
     url_base = "https://www.feiradamadrugadasp.com.br"
     response = requests.get(url_base)
     products_data = []
+    cont = 0
     if response.status_code != 200:
         print("Failed to retrieve the page")
         return []
@@ -60,7 +61,7 @@ def scrap_feira_md():
             
             for link_product in links_products:
                 url_product = f"{url_base}{link_product}"
-                url_product = "https://www.feiradamadrugadasp.com.br/camiseta-masculina-basica-lisa-sem-estampa-plus-size/p/220744/"
+                #url_product = "https://www.feiradamadrugadasp.com.br/camiseta-masculina-basica-lisa-sem-estampa-plus-size/p/220744/"
                 item = soup.select_one('.item-product')
                 codigo_sku = item.get('data-id') if item and item.has_attr('data-id') else 'N/A'
                 response = requests.get(url_product)
@@ -75,9 +76,21 @@ def scrap_feira_md():
                 preco_custo = float(product.find('strong', class_='sale_price').text.strip().replace('R$ ','').replace('.','').replace(',','.'))
                 preco_venda = round(float(preco_custo)* 1.1,2)
                 categoria = url_categoria.split('/')[3].replace('-',' ').title()
-                lista_cores = [label.get_text(strip=True) for label in product.select('.cor .values .value:not(.disabled)')]
-                lista_tamanhos = [label.get_text(strip=True) for label in product.select('.tam .values span')]
-                
+                print(f"Processando categoria: {categoria} | página:{pagina} de {total_paginas} | Item: {links_products.index(link_product)} de {len(links_products)}")
+                #lista_cores = [label.get_text(strip=True) for label in product.select('.cor .values .value:not(.disabled)')]
+                #lista_tamanhos = [label.get_text(strip=True) for label in product.select('.tam .values span')]
+                lista_cores = [{
+                    "Valores do Atributo 2": label.get_text(strip=True).replace('\n', '').replace('\t', ''),
+                    "Estoque": 10
+                } for label in product.select('.cor .values .value:not(.disabled)')]
+
+                cores = [item['Valores do Atributo 2'] for item in lista_cores]
+                lista_tamanhos = [{
+                    "Valores do Atributo 1": label.get_text(strip=True).replace('\n', '').replace('\t', ''),
+                    "Estoque": 10
+                } for label in product.select('.tam .values span')]
+
+                tamanhos = [item['Valores do Atributo 1'] for item in lista_tamanhos]
                 paragrafos_1 = [
                     p.get_text(strip=True)  # Extrai o texto limpo
                     for p in product.select('div[itemprop="description"] p')  # Seletor CSS equivalente
@@ -105,16 +118,16 @@ def scrap_feira_md():
                 lista_imagens_final = ", ".join(lista_sem_duplicatas) 
                 if lista_cores:
                     df_cores = pd.DataFrame(lista_cores)
-                    cores_str = ', '.join(lista_cores)
+                    cores_str = ', '.join(cores)
                     cor = 'Cor'
-                    cor_padrao = lista_cores[0] if lista_cores else ''
+                    cor_padrao = cores[0] if cores else ''
                 else:
                     cor_padrao = cor = cores_str = df_cores = ""
                     
                 if lista_tamanhos:
                     df_tamanhos = pd.DataFrame(lista_tamanhos)
-                    tamanhos_str = ', '.join(lista_tamanhos)
-                    tamanho_meio = lista_tamanhos[0] if lista_tamanhos else ''
+                    tamanhos_str = ', '.join(tamanhos)
+                    tamanho_meio = tamanhos[0] if tamanhos else ''
                     atributo1 = 'Tamanho'
                     atributo_global_2 = 1
                 else:
@@ -162,7 +175,7 @@ def scrap_feira_md():
                         "Categorias": categoria,
                         "Tags": "",
                         "Classe de Entrega": "",
-                        "Imagens": lista_imagens,
+                        "Imagens": lista_imagens_final,
                         "Limite de Downloads": "",
                         "Dias para Expirar o Download": "",
                         "Ascendente": f"id:{codigo}",
@@ -190,11 +203,11 @@ def scrap_feira_md():
                 df_final = pd.concat(products_data, ignore_index=True)
                 df_final = df_final.fillna("")
                 cont += 1
-                if cont >= 1:
+                if cont >= 10:
                     save_to_sheets(df_final)
                     cont = 0
 
-            #return product_list
+    return df_final
 def process_products(products):
     df_tamanhos, df_cores, df_imagens, produto_dict = products
     try:
@@ -247,4 +260,8 @@ def process_products(products):
         print(f"Erro ao processar o produto url_product: {e}")
 if __name__ == "__main__":
     products = scrap_feira_md()
+    if products is not None:
+        save_to_sheets(products)
+    else:
+        print("No products found or an error occurred during scraping.")
     print("Scraping completed successfully.")

@@ -28,9 +28,10 @@ def scrap_feira_md():
     links_categorias = [a['href'] for a in categories if a.has_attr('href')]
  
     for link_categoria in links_categorias:
-        if link_categoria == '/novidades-da-semana/?map=cl&sort=lancamentos':
+        if links_categorias.index(link_categoria)<3:
             continue
         url_categoria = f"{url_base}{link_categoria}"        
+        categoria = url_categoria.split('/')[3].replace('-',' ').title()
         response = requests.get(url_categoria) 
 
         if response.status_code != 200:
@@ -40,9 +41,11 @@ def scrap_feira_md():
         soup = BeautifulSoup(response.content, 'html.parser')
         try:
             texto_paginacao = soup.find(class_="info").get_text(strip=True)
-            total_paginas = int(list(map(int, re.findall(r'\d+', texto_paginacao))))
+            total_paginas = list(map(int, re.findall(r'\d+', texto_paginacao)))
+            total_paginas = total_paginas[1]
+            print(f"Categoria: {categoria}, total de páginas: {total_paginas}")
         except Exception as e:
-            print(f"Erro ao extrair números da paginação para a categoria: {e}")
+            print(f"Categoria: {categoria}, com uma página")
             total_paginas = 1
         
         for pagina in range(1, total_paginas + 1):
@@ -74,143 +77,147 @@ def scrap_feira_md():
                 if response.status_code != 200:
                     print(f"Failed to retrieve the page: {url_product}")
                     continue
+                try:
+                    product = BeautifulSoup(response.content, 'html.parser') 
+                    produto = product.find('h1', class_='name').text.strip()
+                    codigo = url_product.split('/')[-2]
+                    preco_custo = float(product.find('strong', class_='sale_price').text.strip().replace('R$ ','').replace('.','').replace(',','.'))
+                    preco_venda = round(float(preco_custo)* 1.1,2)
                 
-                product = BeautifulSoup(response.content, 'html.parser') 
-                produto = product.find('h1', class_='name').text.strip()
-                codigo = url_product.split('/')[-2]
-                preco_custo = float(product.find('strong', class_='sale_price').text.strip().replace('R$ ','').replace('.','').replace(',','.'))
-                preco_venda = round(float(preco_custo)* 1.1,2)
-                categoria = url_categoria.split('/')[3].replace('-',' ').title()
-                print(f"Processando categoria: {links_categorias.index(link_categoria) +1} de {len(categoria)+1} | página:{pagina} de {total_paginas} | Item: {links_products.index(link_product)+1} de {len(links_products)} | cont: {cont} de 100, faltam: {100-cont} para salvar, total_processado: {total_produtos}")
-                #lista_cores = [label.get_text(strip=True) for label in product.select('.cor .values .value:not(.disabled)')]
-                #lista_tamanhos = [label.get_text(strip=True) for label in product.select('.tam .values span')]
-                lista_cores = [{
-                    "Valores do Atributo 2": label.get_text(strip=True).replace('\n', '').replace('\t', ''),
-                    "Estoque": 10
-                } for label in product.select('.cor .values .value:not(.disabled)')]
+                    print(f"Processando categoria: {links_categorias.index(link_categoria) +1} de {len(links_categorias)} | página:{pagina} de {total_paginas} | Item: {links_products.index(link_product)+1} de {len(links_products)} | cont: {cont} de 100, faltam: {100-cont} para salvar, total_processado: {total_produtos}")
+                    #lista_cores = [label.get_text(strip=True) for label in product.select('.cor .values .value:not(.disabled)')]
+                    #lista_tamanhos = [label.get_text(strip=True) for label in product.select('.tam .values span')]
+                    lista_cores = [{
+                        "Valores do Atributo 2": label.get_text(strip=True).replace('\n', '').replace('\t', ''),
+                        "Estoque": 10
+                    } for label in product.select('.cor .values .value:not(.disabled)')]
 
-                cores = [item['Valores do Atributo 2'] for item in lista_cores]
-                lista_tamanhos = [{
-                    "Valores do Atributo 1": label.get_text(strip=True).replace('\n', '').replace('\t', ''),
-                    "Estoque": 10
-                } for label in product.select('.tam .values span')]
+                    cores = [item['Valores do Atributo 2'] for item in lista_cores]
+                    lista_tamanhos = [{
+                        "Valores do Atributo 1": label.get_text(strip=True).replace('\n', '').replace('\t', ''),
+                        "Estoque": 10
+                    } for label in product.select('.tam .values span')]
 
-                tamanhos = [item['Valores do Atributo 1'] for item in lista_tamanhos]
-                paragrafos_1 = [
-                    p.get_text(strip=True)  # Extrai o texto limpo
-                    for p in product.select('div[itemprop="description"] p')  # Seletor CSS equivalente
-                    if p.get_text(strip=True)  # Ignora parágrafos vazios
-                ]
-                paragrafos_2 = [
-                    p.get_text(strip=True)  # Extrai o texto limpo
-                    for p in product.select('div[itemprop="description"] li')  # Seletor CSS equivalente
-                    if p.get_text(strip=True)  # Ignora parágrafos vazios
-                ]
-                description = ' '.join(paragrafos_1 + paragrafos_2)
-                peso_produto = paragrafos_2[-2].replace('Peso do Produto:','')
-                codigo_upc = paragrafos_2[-1].replace('Código UPC:','') 
+                    tamanhos = [item['Valores do Atributo 1'] for item in lista_tamanhos]
+                    paragrafos_1 = [
+                        p.get_text(strip=True)  # Extrai o texto limpo
+                        for p in product.select('div[itemprop="description"] p')  # Seletor CSS equivalente
+                        if p.get_text(strip=True)  # Ignora parágrafos vazios
+                    ]
+                    paragrafos_2 = [
+                        p.get_text(strip=True)  # Extrai o texto limpo
+                        for p in product.select('div[itemprop="description"] li')  # Seletor CSS equivalente
+                        if p.get_text(strip=True)  # Ignora parágrafos vazios
+                    ]
+                    description = ' '.join(paragrafos_1 + paragrafos_2)
+                    peso_produto = paragrafos_2[-2].replace('Peso do Produto:','')
+                    codigo_upc = paragrafos_2[-1].replace('Código UPC:','') 
 
-                # Supondo que 'soup' já esteja definido com o HTML carregado
-                imagens = product.select('#sly_carousel ul li a')
+                    # Supondo que 'soup' já esteja definido com o HTML carregado
+                    imagens = product.select('#sly_carousel ul li a')
 
-                lista_imagens = [
-                    "https:" + link.get('big_img') if link.get('big_img') else ""
-                    for link in imagens
-                ]
-                # Remove duplicatas e strings vazias
-                lista_sem_duplicatas = list({img for img in lista_imagens if img})
-                # Junta com vírgula e espaço
-                lista_imagens_final = ", ".join(lista_sem_duplicatas) 
-                if lista_cores:
-                    df_cores = pd.DataFrame(lista_cores)
-                    cores_str = ', '.join(cores)
-                    cor = 'Cor'
-                    cor_padrao = cores[0] if cores else ''
-                else:
-                    cor_padrao = cor = cores_str = df_cores = ""
+                    lista_imagens = [
+                        "https:" + link.get('big_img') if link.get('big_img') else ""
+                        for link in imagens
+                    ]
+                    # Remove duplicatas e strings vazias
+                    lista_sem_duplicatas = list({img for img in lista_imagens if img})
+                    # Junta com vírgula e espaço
+                    lista_imagens_final = ", ".join(lista_sem_duplicatas) 
+                    if lista_cores:
+                        df_cores = pd.DataFrame(lista_cores)
+                        cores_str = ', '.join(cores)
+                        cor = 'Cor'
+                        cor_padrao = cores[0] if cores else ''
+                    else:
+                        cor_padrao = cor = cores_str = df_cores = ""
+                        
+                    if lista_tamanhos:
+                        df_tamanhos = pd.DataFrame(lista_tamanhos)
+                        tamanhos_str = ', '.join(tamanhos)
+                        tamanho_meio = tamanhos[0] if tamanhos else ''
+                        atributo1 = 'Tamanho'
+                        atributo_global_2 = 1
+                    else:
+                        tamanho_meio = atributo1 = tamanhos_str = df_tamanhos = ""
+                        atributo_global_2 = 0
+                    # Cria o DataFrame imagem
+                    if len(lista_sem_duplicatas) >0:
+                        df_imagens = pd.DataFrame(lista_sem_duplicatas)
+                        df_imagens = df_imagens.transpose()
+                        df_imagens.columns = [f'Imagem {i+1}' for i in range(len(df_imagens.columns))]
+                    else:
+                        df_imagens =""
                     
-                if lista_tamanhos:
-                    df_tamanhos = pd.DataFrame(lista_tamanhos)
-                    tamanhos_str = ', '.join(tamanhos)
-                    tamanho_meio = tamanhos[0] if tamanhos else ''
-                    atributo1 = 'Tamanho'
-                    atributo_global_2 = 1
-                else:
-                    tamanho_meio = atributo1 = tamanhos_str = df_tamanhos = ""
-                    atributo_global_2 = 0
-                # Cria o DataFrame imagem
-                if len(lista_sem_duplicatas) >0:
-                    df_imagens = pd.DataFrame(lista_sem_duplicatas)
-                    df_imagens = df_imagens.transpose()
-                    df_imagens.columns = [f'Imagem {i+1}' for i in range(len(df_imagens.columns))]
-                else:
-                    df_imagens =""
-                
-                df_final = process_products( [df_tamanhos,df_cores,df_imagens,{
-                        'ID': codigo,
-                        'SKU': codigo_sku,
-                        'Código do Produto': codigo_upc,
-                        'Preço promocional': 0,
-                        "Tipo": "variable",
-                        "GTIN UPC EAN ISBN": "",
-                        'Nome': produto,
-                        "Publicado": 1,
-                        "Em Destaque": 0,
-                        "Visibilidade no Catálogo": "visible",
-                        "Descrição Curta": "",
-                        "Descrição": description,
-                        "Data de Preço Promocional Começa em": "",
-                        "Data de Preço Promocional Termina em": "",
-                        "Status do Imposto": "taxable",
-                        "Classe de Imposto": "parent",
-                        "Em Estoque": 0,
-                        "Estoque": "",
-                        "Quantidade Baixa de Estoque": 3,
-                        "São Permitidas Encomendas": 0,
-                        "Vendido Individualmente": 0,
-                        "Peso (kg)": peso_produto,
-                        "Comprimento (cm)": 32,
-                        "Largura (cm)": 20,
-                        "Altura (cm)": 12,
-                        "Permitir avaliações de clientes?": 1,
-                        "Nota de Compra": "",
-                        "Preço Promocional": "",
-                        "Preço de Custo": preco_custo,
-                        "Preço de Venda": preco_venda,
-                        "Categorias": categoria,
-                        "Tags": "",
-                        "Classe de Entrega": "",
-                        "Imagens": lista_imagens_final,
-                        "Limite de Downloads": "",
-                        "Dias para Expirar o Download": "",
-                        "Ascendente": f"id:{codigo}",
-                        "Grupo de Produtos": "",
-                        "Upsells": "",
-                        "Venda Cruzada": "",
-                        "URL Externa": "",
-                        "Texto do Botão": "",
-                        "Posição": 0,
-                        "Brands": "",
-                        "Nome do Atributo 1": atributo1,
-                        "Valores do Atributo 1": tamanhos_str,
-                        "Visibilidade do Atributo 1": 0,
-                        "Atributo Global 1": atributo1,
-                        "Atributo Padrão 1": tamanho_meio,
-                        "Nome do Atributo 2": cor,
-                        "Valores do Atributo 2": cores_str,
-                        "Visibilidade do Atributo 2": 0,
-                        "Atributo Global 2": atributo_global_2,
-                        "Atributo Padrão 2": cor_padrao,
-                        "Galpão": " Galpão 8"
-                    }])
-    
-                products_data.append(df_final)
-                df_final = pd.concat(products_data, ignore_index=True)
-                df_final = df_final.fillna("")
+                    df_final = process_products( [df_tamanhos,df_cores,df_imagens,{
+                            'ID': codigo,
+                            'SKU': codigo_sku,
+                            'Código do Produto': codigo_upc,
+                            'Preço promocional': 0,
+                            "Tipo": "variable",
+                            "GTIN UPC EAN ISBN": "",
+                            'Nome': produto,
+                            "Publicado": 1,
+                            "Em Destaque": 0,
+                            "Visibilidade no Catálogo": "visible",
+                            "Descrição Curta": "",
+                            "Descrição": description,
+                            "Data de Preço Promocional Começa em": "",
+                            "Data de Preço Promocional Termina em": "",
+                            "Status do Imposto": "taxable",
+                            "Classe de Imposto": "parent",
+                            "Em Estoque": 0,
+                            "Estoque": "",
+                            "Quantidade Baixa de Estoque": 3,
+                            "São Permitidas Encomendas": 0,
+                            "Vendido Individualmente": 0,
+                            "Peso (kg)": peso_produto,
+                            "Comprimento (cm)": 32,
+                            "Largura (cm)": 20,
+                            "Altura (cm)": 12,
+                            "Permitir avaliações de clientes?": 1,
+                            "Nota de Compra": "",
+                            "Preço Promocional": "",
+                            "Preço de Custo": preco_custo,
+                            "Preço de Venda": preco_venda,
+                            "Categorias": categoria,
+                            "Tags": "",
+                            "Classe de Entrega": "",
+                            "Imagens": lista_imagens_final,
+                            "Limite de Downloads": "",
+                            "Dias para Expirar o Download": "",
+                            "Ascendente": f"id:{codigo}",
+                            "Grupo de Produtos": "",
+                            "Upsells": "",
+                            "Venda Cruzada": "",
+                            "URL Externa": "",
+                            "Texto do Botão": "",
+                            "Posição": 0,
+                            "Brands": "",
+                            "Nome do Atributo 1": atributo1,
+                            "Valores do Atributo 1": tamanhos_str,
+                            "Visibilidade do Atributo 1": 0,
+                            "Atributo Global 1": atributo1,
+                            "Atributo Padrão 1": tamanho_meio,
+                            "Nome do Atributo 2": cor,
+                            "Valores do Atributo 2": cores_str,
+                            "Visibilidade do Atributo 2": 0,
+                            "Atributo Global 2": atributo_global_2,
+                            "Atributo Padrão 2": cor_padrao,
+                            "Galpão": " Galpão 8"
+                        }])
+        
+                    products_data.append(df_final)
+                    df_final = pd.concat(products_data, ignore_index=True)
+                    df_final = df_final.fillna("")
+
+                except Exception as e:
+                    print(f"Erro ao processar o produto {url_product}: {e}")
+                    continue
                 cont += 1
                 total_produtos += 1
                 if cont >= 100:
-                    sleep(2)  # Pausa de 5 segundos a cada 100 produtos
+                    sleep(2)  # Pausa de 5 segundos a cada 100 produtos+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                     print(f"Salvando +{cont} produtos processados até agora...")
                     save_to_sheets(df_final)
                     cont = 0
